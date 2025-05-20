@@ -10,11 +10,12 @@ This project provides a web-based interface to create and manage simple websites
 - **Persistence**: Website files and port tracking are stored on the host at `/opt/website-creator`, mounted to `/var/www/html` and `/app/ports.txt` in the container.
 - **Manual IP Configuration**: Links to websites use a user-specified server IP, set via the `SERVER_IP` environment variable.
 - **User Feedback**: Success/error messages for create/delete actions (e.g., "Created site_1 on port 8001", "Invalid site name").
+- **Autostart**: The container starts automatically on system boot and restarts unless explicitly stopped.
 
 ## Prerequisites
-- **Docker**: Install Docker and Docker Compose on your server - https://get.docker.com/
+- **Docker**: Install Docker and Docker Compose on your server.
 - **Host Directory**: Create `/opt/website-creator` on the host for persistent storage.
-- **Server IP**: Know your server's IP address (e.g., `192.168.1.100` for LAN or a public IP).
+- **Server IP**: Know your server's IP address (e.g., `192.168.0.22` for LAN or a public IP).
 - **Git**: Required to clone the repository.
 
 ## Setup Instructions
@@ -54,23 +55,36 @@ This project provides a web-based interface to create and manage simple websites
      curl ifconfig.me  # For public IP
      ```
 
-4. **Build and Run with Docker Compose**:
+4. **Enable Docker on System Startup**:
+   - Ensure the Docker service starts when the server boots:
+     ```bash
+     sudo systemctl enable docker
+     sudo systemctl enable containerd
+     ```
+   - Verify Docker is enabled:
+     ```bash
+     sudo systemctl is-enabled docker
+     ```
+     Should output `enabled`.
+
+5. **Build and Run with Docker Compose**:
    ```bash
-   docker compose up --build -d
+   docker-compose up --build -d
    ```
    - Builds the Docker image and starts the container named `website-creator`.
    - Maps ports: 80 (Flask UI, container port 8080), 5000 (Apache2 default), 8000–9000 (websites).
    - Mounts `/opt/website-creator` to `/var/www/html` and `/opt/website-creator/ports.txt` to `/app/ports.txt`.
+   - The `restart: unless-stopped` policy ensures the container restarts on crashes or reboots unless explicitly stopped.
 
-5. **Alternative: Run with Docker**:
+6. **Alternative: Run with Docker**:
    If you prefer not to use Docker Compose:
    ```bash
    docker build -t website-creator .
-   docker run -d --name website-creator -p 80:8080 -p 5000:5000 -p 8000-9000:8000-9000 -v /opt/website-creator:/var/www/html -v /opt/website-creator/ports.txt:/app/ports.txt -e SERVER_IP=<your-server-ip> website-creator
+   docker run -d --name website-creator --restart unless-stopped -p 80:8080 -p 5000:5000 -p 8000-9000:8000-9000 -v /opt/website-creator:/var/www/html -v /opt/website-creator/ports.txt:/app/ports.txt -e SERVER_IP=<your-server-ip> website-creator
    ```
    Example: `-e SERVER_IP=192.168.0.22`
 
-6. **Access the Web UI**:
+7. **Access the Web UI**:
    - Open a browser and navigate to `http://<your-server-ip>:80`.
    - Click "Create New Website" to generate a new site (e.g., `site_1` on `http://<your-server-ip>:8001`).
    - To delete a site, enter its name (e.g., `site_1`) in the delete form and click "Delete".
@@ -87,7 +101,7 @@ To apply changes to the code or configuration:
 
 2. **Stop and Remove Containers**:
    ```bash
-   docker compose down
+   docker-compose down
    ```
    Or, if using `docker run`:
    ```bash
@@ -110,7 +124,37 @@ To apply changes to the code or configuration:
      ```
 
 5. **Rebuild and Restart**:
-   - Follow step 4 or 5 from the setup instructions above.
+   - Follow step 5 or 6 from the setup instructions above.
+
+## Managing Autostart
+- **Check Container Restart Policy**:
+  ```bash
+  docker inspect website-creator | grep -i restart
+  ```
+  Should show `"RestartPolicy": { "Name": "unless-stopped" }`.
+- **Disable Autostart**:
+  To prevent the container from restarting on boot:
+  ```bash
+  docker update --restart=no website-creator
+  ```
+  Or edit `docker-compose.yml` to remove `restart: unless-stopped` and redeploy:
+  ```bash
+  docker-compose down
+  docker-compose up -d
+  ```
+- **Stop Container Without Restarting**:
+  ```bash
+  docker stop website-creator
+  ```
+  The container will not restart until you run `docker start website-creator` or reboot the server.
+- **Verify Docker Runs on Boot**:
+  Reboot the server and check if the container is running:
+  ```bash
+  sudo reboot
+  # After reboot
+  docker ps
+  ```
+  Should list `website-creator` as running.
 
 ## Environment Variables
 - **SERVER_IP** (Required):
@@ -140,6 +184,26 @@ To apply changes to the code or configuration:
   ```
 
 ## Troubleshooting
+- **Container Not Starting on Boot**:
+  - Verify Docker is enabled:
+    ```bash
+    sudo systemctl is-enabled docker
+    ```
+    If `disabled`, enable it:
+    ```bash
+    sudo systemctl enable docker
+    sudo systemctl enable containerd
+    ```
+  - Check container restart policy:
+    ```bash
+    docker inspect website-creator | grep -i restart
+    ```
+    Should show `"unless-stopped"`.
+  - Ensure `docker-compose.yml` is in the correct directory and run:
+    ```bash
+    cd ~/website-creator
+    docker-compose up -d
+    ```
 - **Incorrect Site Name or Port**:
   - If sites are created with wrong names (e.g., `site_2` instead of `site_1`) or ports (e.g., 8000 instead of 8001), check `ports.txt`:
     ```bash
