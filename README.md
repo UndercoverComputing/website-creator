@@ -139,8 +139,8 @@ To apply changes to the code or configuration:
   ```
   Or edit `docker-compose.yml` to remove `restart: unless-stopped` and redeploy:
   ```bash
-  docker-compose down
-  docker-compose up -d
+  docker compose down
+  docker compose up -d
   ```
 - **Stop Container Without Restarting**:
   ```bash
