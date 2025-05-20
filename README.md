@@ -73,7 +73,7 @@ This project provides a web-based interface to create and manage simple websites
    ```
    - Builds the Docker image and starts the container named `website-creator`.
    - Maps ports: 80 (Flask UI, container port 8080), 5000 (Apache2 default), 8000–9000 (websites).
-   - Mounts `/opt/website-creator` to `/var/www/html` and `/opt/website-creator/ports.txt` to `/app/ports.txt`.
+   - Mounts `/opt/website-creator` to `/var/www/html` and `/app/ports.txt`.
    - The `restart: unless-stopped` policy ensures the container restarts on crashes or reboots unless explicitly stopped.
 
 6. **Alternative: Run with Docker**:
@@ -184,6 +184,56 @@ To apply changes to the code or configuration:
   ```
 
 ## Troubleshooting
+- **Websites Not Listed in UI**:
+  - Check if virtual host files exist:
+    ```bash
+    docker exec website-creator ls /etc/apache2/sites-available
+    ```
+    Should list `site_1.conf`, `site_2.conf`, etc.
+  - Verify Flask can read virtual host files:
+    ```bash
+    docker exec website-creator cat /etc/apache2/sites-available/site_1.conf
+    ```
+    If permission denied, fix permissions:
+    ```bash
+    docker exec website-creator chmod -R 644 /etc/apache2/sites-available
+    docker exec website-creator chown -R www-data:www-data /etc/apache2/sites-available
+    ```
+  - Check Flask logs for errors:
+    ```bash
+    docker logs website-creator | grep ERROR
+    ```
+- **Websites Only Accessible via Port 5000**:
+  - Verify virtual host sites are enabled:
+    ```bash
+    docker exec website-creator ls /etc/apache2/sites-enabled
+    ```
+    Should list `site_1.conf`, etc. If empty, enable manually:
+    ```bash
+    docker exec website-creator a2ensite site_1
+    docker exec website-creator service apache2 reload
+    ```
+  - Check Apache2 configuration:
+    ```bash
+    docker exec website-creator apache2ctl configtest
+    ```
+    If errors, inspect:
+    ```bash
+    docker exec website-creator cat /var/log/apache2/error.log
+    ```
+  - Verify port mappings:
+    ```bash
+    docker port website-creator
+    ```
+    Should show `80->8080`, `5000->5000`, `8000-9000->8000-9000`.
+  - Test website ports directly:
+    ```bash
+    curl http://192.168.0.22:8001
+    ```
+    Should return `site_1`’s `index.html`. If it fails, check Apache2 logs:
+    ```bash
+    docker exec website-creator cat /var/log/apache2/error.log
+    ```
 - **Container Not Starting on Boot**:
   - Verify Docker is enabled:
     ```bash
@@ -205,7 +255,7 @@ To apply changes to the code or configuration:
     docker-compose up -d
     ```
 - **Incorrect Site Name or Port**:
-  - If sites are created with wrong names (e.g., `site_2` instead of `site_1`) or ports (e.g., 8000 instead of 8001), check `ports.txt`:
+  - If sites are created with wrong names or ports, check `ports.txt`:
     ```bash
     cat /opt/website-creator/ports.txt
     ```
@@ -277,10 +327,6 @@ To apply changes to the code or configuration:
   ```
 - **SERVER_IP Error**: If the UI fails with a "SERVER_IP must be set" error, ensure `SERVER_IP` is defined in `.env` or the `docker run` command.
 - **Apache2 Warning**: If logs show "Could not reliably determine the server's fully qualified domain name, using 172.x.x.x", this is harmless and unrelated to `SERVER_IP`. It’s suppressed by `ServerName localhost` in `apache2.conf`.
-- **Website Not Accessible**: Check Apache2 logs:
-  ```bash
-  docker exec website-creator cat /var/log/apache2/error.log
-  ```
 - **Port Conflicts**: Ensure ports 80, 5000, and 8000–9000 are free on the host:
   ```bash
   netstat -tuln | grep -E '80|5000|8000:9000'
