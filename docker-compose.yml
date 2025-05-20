@@ -2,6 +2,7 @@ services:
   website-creator:
     build: .
     image: website-creator
+    container_name: website-creator
     ports:
       - "80:80"      # Flask UI
       - "5000:5000"  # Apache2 default site
