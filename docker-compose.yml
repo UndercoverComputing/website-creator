@@ -13,3 +13,4 @@ services:
     environment:
       - DEBIAN_FRONTEND=noninteractive
       - SERVER_IP=${SERVER_IP}  # Required: set in .env or environment
+    restart: unless-stopped
