@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Creator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Website Creator</h1>
+    <form method="POST" action="{{ url_for('create_website') }}">
+        <button type="submit">Create New Website</button>
+    </form>
+    <h2>Existing Websites</h2>
+    <ul>
+        {% for website, port in websites %}
+            <li><a href="http://{{ server_ip }}:{{ port }}" target="_blank">{{ website }} (Port {{ port }})</a></li>
+        {% endfor %}
+    </ul>
+    <h2>Delete Website</h2>
+    <form method="POST" action="{{ url_for('delete_website') }}">
+        <input type="text" name="website_name" placeholder="Enter site name (e.g., site_1)" required>
+        <button type="submit">Delete</button>
+    </form>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <p class="{{ category }}">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</body>
+</html>
