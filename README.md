@@ -56,7 +56,7 @@ This project provides a web-based interface to create and manage simple websites
 
 4. **Build and Run with Docker Compose**:
    ```bash
-   docker compose up --build -d
+   docker-compose up --build -d
    ```
    - Builds the Docker image and starts the container named `website-creator`.
    - Maps ports: 80 (Flask UI, container port 8080), 5000 (Apache2 default), 8000–9000 (websites).
@@ -87,7 +87,7 @@ To apply changes to the code or configuration:
 
 2. **Stop and Remove Containers**:
    ```bash
-   docker compose down
+   docker-compose down
    ```
    Or, if using `docker run`:
    ```bash
@@ -129,6 +129,9 @@ To apply changes to the code or configuration:
   - Ports 8000–9000: Individual websites (e.g., `site_1` on 8001, `site_75` on 8075).
 - **Port Reuse**: When a site is deleted, its port is freed and reused for the next site, starting from the lowest available port (e.g., if `site_4` on 8004 is deleted, the next site uses 8004).
 - **Persistence**: Website files and `ports.txt` are stored in `/opt/website-creator` on the host. Ensure `/opt/website-creator/ports.txt` exists as a file before running the container.
+- **Ports File Format**: `ports.txt` has two lines:
+  - First line: Next site number (e.g., `2` for `site_2`).
+  - Second line: Comma-separated used ports (e.g., `8001,8002`) or empty if no ports are used.
 - **Security**: For production, add authentication to the Flask UI, enable HTTPS, and restrict firewall access to ports 80, 5000, and 8000–9000.
 - **Permissions**: After creating/deleting websites, adjust host permissions if needed:
   ```bash
@@ -137,6 +140,32 @@ To apply changes to the code or configuration:
   ```
 
 ## Troubleshooting
+- **Internal Server Error on Create**:
+  - Check logs for `IndexError` or issues with `ports.txt`:
+    ```bash
+    docker logs website-creator
+    ```
+    If you see `IndexError: list index out of range`, the `ports.txt` file is malformed. Verify its content:
+    ```bash
+    cat /opt/website-creator/ports.txt
+    ```
+    It should have two lines, e.g.:
+    ```
+    2
+    8001
+    ```
+    If it’s only one line (e.g., `2`), fix it:
+    ```bash
+    sudo rm -rf /opt/website-creator/ports.txt
+    echo -e "2\n" | sudo tee /opt/website-creator/ports.txt
+    sudo chown www-data:www-data /opt/website-creator/ports.txt
+    sudo chmod 644 /opt/website-creator/ports.txt
+    docker restart website-creator
+    ```
+  - Test the create function manually:
+    ```bash
+    docker exec -it website-creator python3 /app/app.py
+    ```
 - **Unable to Connect to Website**:
   - Check container logs for errors:
     ```bash
@@ -152,14 +181,6 @@ To apply changes to the code or configuration:
     docker exec -it website-creator /bin/bash
     ps aux | grep flask
     ps aux | grep apache2
-    ```
-  - Test Flask manually:
-    ```bash
-    docker exec -it website-creator python3 /app/app.py
-    ```
-  - Check Apache2 logs:
-    ```bash
-    docker exec website-creator cat /var/log/apache2/error.log
     ```
   - Ensure host port 80 is open:
     ```bash
@@ -194,7 +215,7 @@ To apply changes to the code or configuration:
   sudo chmod -R 755 /opt/website-creator
   sudo chown -R www-data:www-data /opt/website-creator
   ```
-- **Ports File Issue**: If `/opt/website-creator/ports.txt` is a directory, remove it and recreate as a file:
+- **Ports File Issue**: If `/opt/website-creator/ports.txt` is a directory or malformed, recreate it:
   ```bash
   sudo rm -rf /opt/website-creator/ports.txt
   echo -e "1\n" | sudo tee /opt/website-creator/ports.txt
