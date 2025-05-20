@@ -56,7 +56,7 @@ This project provides a web-based interface to create and manage simple websites
 
 4. **Build and Run with Docker Compose**:
    ```bash
-   docker-compose up --build -d
+   docker compose up --build -d
    ```
    - Builds the Docker image and starts the container named `website-creator`.
    - Maps ports: 80 (Flask UI, container port 8080), 5000 (Apache2 default), 8000–9000 (websites).
@@ -87,7 +87,7 @@ To apply changes to the code or configuration:
 
 2. **Stop and Remove Containers**:
    ```bash
-   docker-compose down
+   docker compose down
    ```
    Or, if using `docker run`:
    ```bash
