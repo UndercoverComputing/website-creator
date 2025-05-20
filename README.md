@@ -7,7 +7,7 @@ This project provides a web-based interface to create and manage simple websites
 - **Website Creation**: Each website is assigned a sequential name (`site_1`, `site_2`, etc.) and a port (e.g., `site_1` on port 8001).
 - **Port Reuse**: Deleted ports are reused, ensuring no gaps (e.g., if `site_4` on 8004 is deleted, the next site reuses 8004).
 - **Apache2 Hosting**: Websites are served by Apache2 on unique ports in the range 8000–9000.
-- **Persistence**: Website files are stored on the host at `/opt/website-creator`, mounted to `/var/www/html` in the container.
+- **Persistence**: Website files and port tracking are stored on the host at `/opt/website-creator`, mounted to `/var/www/html` and `/app/ports.txt` in the container.
 - **Manual IP Configuration**: Links to websites use a user-specified server IP, set via the `SERVER_IP` environment variable.
 - **User Feedback**: Success/error messages for create/delete actions (e.g., "Created site_1 on port 8001", "Invalid site name").
 
@@ -27,12 +27,15 @@ This project provides a web-based interface to create and manage simple websites
    - Clones the project from GitHub and navigates to the project directory.
    - The repository contains all necessary files: `app/` (with `app.py`, `ports.txt`, `static/style.css`, `templates/index.html`), `Dockerfile`, `apache2.conf`, `entrypoint.sh`, and `docker-compose.yml`.
 
-2. **Create Host Directory**:
+2. **Create Host Directory and Ports File**:
    ```bash
    sudo mkdir -p /opt/website-creator
+   echo -e "1\n" | sudo tee /opt/website-creator/ports.txt
    sudo chown -R $(whoami):$(whoami) /opt/website-creator
    ```
-   - This directory stores website files and persists across container restarts.
+   - Creates `/opt/website-creator` for website files and `/opt/website-creator/ports.txt` for port tracking.
+   - Initializes `ports.txt` with `1` (next site number) and no used ports.
+   - Sets permissions for accessibility.
 
 3. **Set SERVER_IP Environment Variable**:
    - Create a `.env` file in the `website-creator` directory:
@@ -55,13 +58,13 @@ This project provides a web-based interface to create and manage simple websites
    ```
    - Builds the Docker image and starts the container.
    - Maps ports: 80 (Flask UI), 5000 (Apache2 default), 8000–9000 (websites).
-   - Mounts `/opt/website-creator` to `/var/www/html`.
+   - Mounts `/opt/website-creator` to `/var/www/html` and `/opt/website-creator/ports.txt` to `/app/ports.txt`.
 
 5. **Alternative: Run with Docker**:
    If you prefer not to use Docker Compose:
    ```bash
    docker build -t website-creator .
-   docker run -d -p 80:80 -p 5000:5000 -p 8000-9000:8000-9000 -v /opt/website-creator:/var/www/html -e SERVER_IP=<your-server-ip> website-creator
+   docker run -d -p 80:80 -p 5000:5000 -p 8000-9000:8000-9000 -v /opt/website-creator:/var/www/html -v /opt/website-creator/ports.txt:/app/ports.txt -e SERVER_IP=<your-server-ip> website-creator
    ```
    Example: `-e SERVER_IP=192.168.1.100`
 
@@ -95,7 +98,14 @@ To apply changes to the code or configuration:
    docker rmi website-creator
    ```
 
-4. **Rebuild and Restart**:
+4. **Ensure Ports File Exists**:
+   - If `/opt/website-creator/ports.txt` was removed or needs resetting:
+     ```bash
+     echo -e "1\n" | sudo tee /opt/website-creator/ports.txt
+     sudo chown $(whoami):$(whoami) /opt/website-creator/ports.txt
+     ```
+
+5. **Rebuild and Restart**:
    - Follow step 4 or 5 from the setup instructions above.
 
 ## Environment Variables
@@ -113,16 +123,7 @@ To apply changes to the code or configuration:
   - Port 5000: Apache2 default site (serves `/var/www/html` if accessed directly).
   - Ports 8000–9000: Individual websites (e.g., `site_1` on 8001, `site_75` on 8075).
 - **Port Reuse**: When a site is deleted, its port is freed and reused for the next site, starting from the lowest available port (e.g., if `site_4` on 8004 is deleted, the next site uses 8004).
-- **Persistence**: Website files are stored in `/opt/website-creator` on the host. For `ports.txt` persistence, add to `docker-compose.yml`:
-  ```yaml
-  volumes:
-    - /opt/website-creator:/var/www/html
-    - /opt/website-creator/ports.txt:/app/ports.txt
-  ```
-  Create `/opt/website-creator/ports.txt` with:
-  ```
-  1
-  ```
+- **Persistence**: Website files and `ports.txt` are stored in `/opt/website-creator` on the host. Ensure `/opt/website-creator/ports.txt` exists as a file before running the container.
 - **Security**: For production, add authentication to the Flask UI, enable HTTPS, and restrict firewall access to ports 80, 5000, and 8000–9000.
 - **Permissions**: After creating/deleting websites, adjust host permissions if needed:
   ```bash
@@ -139,9 +140,15 @@ To apply changes to the code or configuration:
   ```bash
   netstat -tuln | grep -E '80|5000|8000:9000'
   ```
-- **Permission Issues**: If Apache2 can’t access `/var/www/html`, run:
+- **Permission Issues**: If Apache2 can’t access `/var/www/html` or `/app/ports.txt`, run:
   ```bash
   sudo chmod -R 755 /opt/website-creator
   sudo chown -R www-data:www-data /opt/website-creator
   ```
 - **Delete Errors**: Ensure the site name is correct (e.g., `site_1`) and exists in the UI list.
+- **Ports File Issue**: If `/opt/website-creator/ports.txt` is a directory, remove it and recreate as a file:
+  ```bash
+  sudo rm -rf /opt/website-creator/ports.txt
+  echo -e "1\n" | sudo tee /opt/website-creator/ports.txt
+  sudo chown $(whoami):$(whoami) /opt/website-creator/ports.txt
+  ```
