@@ -5,7 +5,7 @@ This project provides a web-based interface to create and manage simple websites
 ## Features
 - **Web UI**: Accessible on port 80, allows creating new websites with a "Create" button and deleting websites by entering their name (e.g., `site_1`).
 - **Website Creation**: Each website is assigned a sequential name (`site_1`, `site_2`, etc.) and a port (e.g., `site_1` on port 8001).
-- **Port Reuse**: Deleted ports are reused, ensuring no gaps (e.g., if `site_4` on port 8004 is deleted, the next site reuses 8004).
+- **Port Reuse**: Deleted ports are reused, ensuring no gaps (e.g., if `site_4` on 8004 is deleted, the next site reuses 8004).
 - **Apache2 Hosting**: Websites are served by Apache2 on unique ports in the range 8000–9000.
 - **Persistence**: Website files are stored on the host at `/opt/website-creator`, mounted to `/var/www/html` in the container.
 - **Manual IP Configuration**: Links to websites use a user-specified server IP, set via the `SERVER_IP` environment variable.
@@ -15,12 +15,17 @@ This project provides a web-based interface to create and manage simple websites
 - **Docker**: Install Docker and Docker Compose on your server.
 - **Host Directory**: Create `/opt/website-creator` on the host for persistent storage.
 - **Server IP**: Know your server's IP address (e.g., `192.168.1.100` for LAN or a public IP).
+- **Git**: Required to clone the repository.
 
 ## Setup Instructions
 
-1. **Clone or Create Project Directory**:
-   - Create a directory named `website-creator` and place all project files (`app/`, `Dockerfile`, `apache2.conf`, `entrypoint.sh`, `docker-compose.yml`) in it.
-   - Ensure the `app/` directory contains `app.py`, `ports.txt`, `static/style.css`, and `templates/index.html`.
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/The-Dark-Mode/website-creator.git
+   cd website-creator
+   ```
+   - Clones the project from GitHub and navigates to the project directory.
+   - The repository contains all necessary files: `app/` (with `app.py`, `ports.txt`, `static/style.css`, `templates/index.html`), `Dockerfile`, `apache2.conf`, `entrypoint.sh`, and `docker-compose.yml`.
 
 2. **Create Host Directory**:
    ```bash
@@ -32,14 +37,20 @@ This project provides a web-based interface to create and manage simple websites
 3. **Set SERVER_IP Environment Variable**:
    - Create a `.env` file in the `website-creator` directory:
      ```bash
-     echo "SERVER_IP=<your-server-ip>" > website-creator/.env
+     echo "SERVER_IP=<your-server-ip>" > .env
      ```
      Example: `SERVER_IP=192.168.1.100`
-   - Replace `<your-server-ip>` with your server's LAN or public IP address (e.g., find with `ip addr show` or `curl ifconfig.me`).
+   - Replace `<your-server-ip>` with your server's LAN or public IP address. Find it with:
+     ```bash
+     ip addr show | grep inet
+     ```
+     or
+     ```bash
+     curl ifconfig.me  # For public IP
+     ```
 
 4. **Build and Run with Docker Compose**:
    ```bash
-   cd website-creator
    docker-compose up --build -d
    ```
    - Builds the Docker image and starts the container.
@@ -63,9 +74,14 @@ This project provides a web-based interface to create and manage simple websites
 ## Updating the Application
 
 To apply changes to the code or configuration:
-1. **Stop and Remove Containers**:
+1. **Pull Latest Changes**:
    ```bash
    cd website-creator
+   git pull origin main
+   ```
+
+2. **Stop and Remove Containers**:
+   ```bash
    docker-compose down
    ```
    Or, if using `docker run`:
@@ -74,12 +90,12 @@ To apply changes to the code or configuration:
    docker ps -a -q --filter ancestor=website-creator | xargs -r docker rm
    ```
 
-2. **Remove the Image**:
+3. **Remove the Image**:
    ```bash
    docker rmi website-creator
    ```
 
-3. **Rebuild and Restart**:
+4. **Rebuild and Restart**:
    - Follow step 4 or 5 from the setup instructions above.
 
 ## Environment Variables
