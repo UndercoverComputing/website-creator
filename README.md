@@ -13,7 +13,7 @@ This project provides a web-based interface to create and manage simple websites
 - **Autostart**: The container starts automatically on system boot and restarts unless explicitly stopped.
 
 ## Prerequisites
-- **Docker**: Install Docker and Docker Compose on your server.
+- **Docker**: Install Docker and Docker Compose on your server. - https://get.docker.com/
 - **Host Directory**: Create `/opt/website-creator` on the host for persistent storage.
 - **Server IP**: Know your server's IP address (e.g., `192.168.0.22` for LAN or a public IP).
 - **Git**: Required to clone the repository.
