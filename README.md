@@ -184,24 +184,45 @@ To apply changes to the code or configuration:
   ```
 
 ## Troubleshooting
-- **Websites Not Listed in UI**:
-  - Check if virtual host files exist:
+- **"Port 8001 is already in use" Error**:
+  - Check `ports.txt` for stale entries:
+    ```bash
+    cat /opt/website-creator/ports.txt
+    ```
+    If it lists ports (e.g., `8001`) but no corresponding `site_*.conf` files exist:
     ```bash
     docker exec website-creator ls /etc/apache2/sites-available
     ```
-    Should list `site_1.conf`, `site_2.conf`, etc.
-  - Verify Flask can read virtual host files:
+    Reset `ports.txt`:
     ```bash
-    docker exec website-creator cat /etc/apache2/sites-available/site_1.conf
+    sudo rm -rf /opt/website-creator/ports.txt
+    echo -e "1\n" | sudo tee /opt/website-creator/ports.txt
+    sudo chown www-data:www-data /opt/website-creator/ports.txt
+    sudo chmod 644 /opt/website-creator/ports.txt
+    docker restart website-creator
     ```
-    If permission denied, fix permissions:
+  - Verify no other process is using port 8001:
     ```bash
-    docker exec website-creator chmod -R 644 /etc/apache2/sites-available
-    docker exec website-creator chown -R www-data:www-data /etc/apache2/sites-available
+    sudo netstat -tuln | grep 8001
+    docker exec website-creator netstat -tuln | grep 8001
     ```
-  - Check Flask logs for errors:
+- **Websites Not Listed in UI**:
+  - Check virtual host files:
+    ```bash
+    docker exec website-creator ls /etc/apache2/sites-available
+    ```
+    Should list `site_1.conf`, `site_2.conf`, etc. If missing, check Flask logs:
     ```bash
     docker logs website-creator | grep ERROR
+    ```
+  - Verify permissions:
+    ```bash
+    docker exec website-creator ls -l /etc/apache2/sites-available
+    ```
+    If permission denied, fix:
+    ```bash
+    docker exec website-creator chown -R www-data:www-data /etc/apache2/sites-available
+    docker exec website-creator chmod -R 644 /etc/apache2/sites-available
     ```
 - **Websites Only Accessible via Port 5000**:
   - Verify virtual host sites are enabled:
@@ -226,7 +247,7 @@ To apply changes to the code or configuration:
     docker port website-creator
     ```
     Should show `80->8080`, `5000->5000`, `8000-9000->8000-9000`.
-  - Test website ports directly:
+  - Test website ports:
     ```bash
     curl http://192.168.0.22:8001
     ```
@@ -249,17 +270,12 @@ To apply changes to the code or configuration:
     docker inspect website-creator | grep -i restart
     ```
     Should show `"unless-stopped"`.
-  - Ensure `docker-compose.yml` is in the correct directory and run:
-    ```bash
-    cd ~/website-creator
-    docker-compose up -d
-    ```
 - **Incorrect Site Name or Port**:
-  - If sites are created with wrong names or ports, check `ports.txt`:
+  - Check `ports.txt`:
     ```bash
     cat /opt/website-creator/ports.txt
     ```
-    It should start with `1` for a fresh setup and list correct ports (e.g., `8001` for `site_1`). Fix it:
+    Fix if incorrect:
     ```bash
     sudo rm -rf /opt/website-creator/ports.txt
     echo -e "1\n" | sudo tee /opt/website-creator/ports.txt
@@ -271,76 +287,55 @@ To apply changes to the code or configuration:
     ```bash
     docker exec website-creator ls /etc/apache2/sites-available
     ```
-    Ensure files match expected names (e.g., `site_1.conf`) and ports.
 - **Internal Server Error on Create**:
-  - Check logs for `IndexError` or issues with `ports.txt`:
+  - Check logs:
     ```bash
     docker logs website-creator
     ```
-    If you see `IndexError: list index out of range`, the `ports.txt` file is malformed. Verify its content:
+    Look for `ERROR` messages. If `ports.txt` is malformed:
     ```bash
     cat /opt/website-creator/ports.txt
     ```
-    It should have two lines, e.g.:
-    ```
-    2
-    8001
-    ```
-    If it’s only one line, fix it as above.
-  - Test the create function manually:
-    ```bash
-    docker exec -it website-creator python3 /app/app.py
-    ```
+    Fix as above.
 - **Unable to Connect to Website**:
-  - Check container logs for errors:
+  - Check container logs:
     ```bash
     docker logs website-creator
     ```
-    If you see "Address already in use" or "Port 8080 is in use", check for conflicting processes:
+  - Verify Flask and Apache2:
     ```bash
-    docker exec website-creator netstat -tuln | grep 8080
-    docker exec website-creator ps aux | grep -E 'flask|apache2'
+    docker exec -it website-creator ps aux | grep -E 'flask|apache2'
     ```
-  - Verify Flask and Apache2 are running:
+  - Ensure host ports are open:
     ```bash
-    docker exec -it website-creator /bin/bash
-    ps aux | grep flask
-    ps aux | grep apache2
-    ```
-  - Ensure host port 80 is open:
-    ```bash
-    netstat -tuln | grep 80
-    sudo lsof -i :80
-    ```
-    If blocked, allow it:
-    ```bash
+    sudo netstat -tuln | grep -E '80|5000|8000:9000'
     sudo ufw allow 80
+    sudo ufw allow 5000
+    sudo ufw allow 8000:9000/tcp
     ```
-  - Verify `.env` file has a valid `SERVER_IP`:
+  - Verify `.env`:
     ```bash
     cat .env
     ```
-- **No Logs Output**: If `docker logs website-creator` is empty, the entrypoint script may have failed. Run it manually:
-  ```bash
-  docker exec -it website-creator /bin/bash
-  /entrypoint.sh
-  ```
-- **SERVER_IP Error**: If the UI fails with a "SERVER_IP must be set" error, ensure `SERVER_IP` is defined in `.env` or the `docker run` command.
-- **Apache2 Warning**: If logs show "Could not reliably determine the server's fully qualified domain name, using 172.x.x.x", this is harmless and unrelated to `SERVER_IP`. It’s suppressed by `ServerName localhost` in `apache2.conf`.
-- **Port Conflicts**: Ensure ports 80, 5000, and 8000–9000 are free on the host:
-  ```bash
-  netstat -tuln | grep -E '80|5000|8000:9000'
-  ```
-- **Permission Issues**: If Apache2 or Flask can’t access `/var/www/html` or `/app/ports.txt`, run:
-  ```bash
-  sudo chmod -R 755 /opt/website-creator
-  sudo chown -R www-data:www-data /opt/website-creator
-  ```
-- **Ports File Issue**: If `/opt/website-creator/ports.txt` is a directory or malformed, recreate it:
-  ```bash
-  sudo rm -rf /opt/website-creator/ports.txt
-  echo -e "1\n" | sudo tee /opt/website-creator/ports.txt
-  sudo chown www-data:www-data /opt/website-creator/ports.txt
-  sudo chmod 644 /opt/website-creator/ports.txt
-  ```
-- **Delete Errors**: Ensure the site name is correct (e.g., `site_1`) and exists in the UI list.
+- **No Logs Output**:
+  - Run entrypoint manually:
+    ```bash
+    docker exec -it website-creator /bin/bash
+    /entrypoint.sh
+    ```
+- **SERVER_IP Error**:
+  - Ensure `.env` has `SERVER_IP=192.168.0.22`.
+- **Apache2 Warning**:
+  - Ignore "Could not reliably determine the server's fully qualified domain name" (harmless, fixed by `ServerName localhost`).
+- **Port Conflicts**:
+  - Check host and container:
+    ```bash
+    sudo netstat -tuln | grep -E '80|5000|8000:9000'
+    docker exec website-creator netstat -tuln
+    ```
+- **Permission Issues**:
+  - Fix permissions:
+    ```bash
+    sudo chmod -R 755 /opt/website-creator
+    sudo chown -R www-data:www-data /opt/website-creator
+    ```
