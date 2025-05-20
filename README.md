@@ -12,7 +12,7 @@ This project provides a web-based interface to create and manage simple websites
 - **User Feedback**: Success/error messages for create/delete actions (e.g., "Created site_1 on port 8001", "Invalid site name").
 
 ## Prerequisites
-- **Docker**: Install Docker and Docker Compose on your server.
+- **Docker**: Install Docker and Docker Compose on your server - https://get.docker.com/
 - **Host Directory**: Create `/opt/website-creator` on the host for persistent storage.
 - **Server IP**: Know your server's IP address (e.g., `192.168.1.100` for LAN or a public IP).
 - **Git**: Required to clone the repository.
