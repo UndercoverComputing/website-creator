@@ -1,0 +1,14 @@
+services:
+  website-creator:
+    build: .
+    image: website-creator
+    ports:
+      - "80:80"      # Flask UI
+      - "5000:5000"  # Apache2 default site
+      - "8000-9000:8000-9000"  # Website ports
+    volumes:
+      - /opt/website-creator:/var/www/html
+      - /opt/website-creator/ports.txt:/app/ports.txt
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+      - SERVER_IP=${SERVER_IP}  # Required: set in .env or environment
