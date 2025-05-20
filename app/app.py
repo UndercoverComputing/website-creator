@@ -32,12 +32,11 @@ def get_next_site_and_port():
         with open(PORTS_FILE, 'r') as f:
             lines = f.readlines()
             next_site_num = int(lines[0].strip())
-            # Handle case where used_ports line is empty or missing
             used_ports = []
             if len(lines) > 1 and lines[1].strip():
                 used_ports = [int(p) for p in lines[1].strip().split(",") if p]
         
-        # Check for gaps in site numbers (e.g., if site_2 was deleted, reuse site_2)
+        # Check for gaps in site numbers
         existing_sites = []
         for f in os.listdir(VHOSTS_DIR):
             if f.startswith('site_') and f.endswith('.conf'):
@@ -58,27 +57,35 @@ def get_next_site_and_port():
         port = 8000 + site_num
         if port > 9000:
             flash("No more ports available (8001-9000 used)", "error")
-            return None, None
+            return None, None, None, None
         
         if port in used_ports:
-            flash(f"Port {port} is already in use", "error")
-            return None, None
+            # Check if port is actually in use by a valid site
+            if os.path.exists(os.path.join(VHOSTS_DIR, f"site_{site_num}.conf")):
+                flash(f"Port {port} is already in use by site_{site_num}", "error")
+                return None, None, None, None
+            else:
+                # Port is in ports.txt but no site exists; allow reuse
+                used_ports.remove(port)
+                logger.info(f"Removed stale port {port} from used_ports")
         
-        # Update ports file
-        used_ports.append(port)
-        new_next_site_num = max(next_site_num, site_num + 1)
-        with open(PORTS_FILE, 'w') as f:
-            f.write(f"{new_next_site_num}\n")
-            f.write(",".join(map(str, sorted(used_ports))) if used_ports else "")
-        
-        return site_num, port
+        return site_num, port, used_ports, next_site_num
     except Exception as e:
         logger.error(f"Error in get_next_site_and_port: {str(e)}")
-        return None, None
+        flash(f"Error reading ports file: {str(e)}", "error")
+        return None, None, None, None
+
+def update_ports_file(next_site_num, used_ports):
+    try:
+        with open(PORTS_FILE, 'w') as f:
+            f.write(f"{next_site_num}\n")
+            f.write(",".join(map(str, sorted(used_ports))) if used_ports else "")
+    except Exception as e:
+        logger.error(f"Error updating ports file: {str(e)}")
+        raise
 
 @app.route('/')
 def index():
-    # List all websites by scanning virtual host files
     websites = []
     try:
         for f in os.listdir(VHOSTS_DIR):
@@ -95,7 +102,7 @@ def index():
                 except Exception as e:
                     logger.error(f"Error reading {vhost_file}: {str(e)}")
                     flash(f"Error reading config for {site_name}", "error")
-        websites.sort(key=lambda x: int(x[0].replace('site_', '')))  # Sort by site number
+        websites.sort(key=lambda x: int(x[0].replace('site_', '')))
     except Exception as e:
         logger.error(f"Error listing websites in {VHOSTS_DIR}: {str(e)}")
         flash("Error listing websites", "error")
@@ -103,19 +110,19 @@ def index():
 
 @app.route('/create', methods=['POST'])
 def create_website():
-    site_num, port = get_next_site_and_port()
-    if site_num is None or port is None:
-        flash("Unable to create website: No ports available or error reading ports file", "error")
+    site_num, port, used_ports, next_site_num = get_next_site_and_port()
+    if site_num is None or port is None or used_ports is None or next_site_num is None:
         return redirect(url_for('index'))
     
     website_name = f"site_{site_num}"
     website_path = os.path.join(WEBSITES_DIR, website_name)
+    vhost_file = os.path.join(VHOSTS_DIR, f"{website_name}.conf")
     
     try:
         # Create website directory
         os.makedirs(website_path, exist_ok=True)
         
-        # Create a basic index.html
+        # Create index.html
         with open(os.path.join(website_path, 'index.html'), 'w') as f:
             f.write(f"""
             <!DOCTYPE html>
@@ -130,11 +137,11 @@ def create_website():
             </html>
             """)
         
-        # Set permissions for Apache
+        # Set permissions
         subprocess.run(['chown', '-R', 'www-data:www-data', website_path], check=True)
         subprocess.run(['chmod', '-R', '755', website_path], check=True)
         
-        # Create Apache virtual host configuration
+        # Create virtual host configuration
         vhost_config = f"""
 Listen {port}
 <VirtualHost *:{port}>
@@ -149,28 +156,43 @@ Listen {port}
     </Directory>
 </VirtualHost>
         """
-        vhost_file = os.path.join(VHOSTS_DIR, f"{website_name}.conf")
         with open(vhost_file, 'w') as f:
             f.write(vhost_config)
         
+        # Set permissions for vhost file
+        subprocess.run(['chown', 'www-data:www-data', vhost_file], check=True)
+        subprocess.run(['chmod', '644', vhost_file], check=True)
+        
         # Enable the site
-        result = subprocess.run(['a2ensite', website_name], capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"Failed to enable site {website_name}: {result.stderr}")
-            flash(f"Failed to enable site {website_name}", "error")
-            return redirect(url_for('index'))
+        result = subprocess.run(['a2ensite', website_name], capture_output=True, text=True, check=True)
+        logger.info(f"a2ensite {website_name}: {result.stdout}")
         
         # Reload Apache
-        result = subprocess.run(['service', 'apache2', 'reload'], capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"Failed to reload Apache2: {result.stderr}")
-            flash(f"Failed to reload Apache2 for {website_name}", "error")
-            return redirect(url_for('index'))
+        result = subprocess.run(['service', 'apache2', 'reload'], capture_output=True, text=True, check=True)
+        logger.info(f"Apache2 reload: {result.stdout}")
+        
+        # Update ports file only after successful creation
+        used_ports.append(port)
+        new_next_site_num = max(next_site_num, site_num + 1)
+        update_ports_file(new_next_site_num, used_ports)
         
         flash(f"Created {website_name} on port {port}", "success")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Subprocess error creating {website_name}: {e.stderr}")
+        flash(f"Error creating {website_name}: {e.stderr}", "error")
+        # Clean up partial creation
+        if os.path.exists(vhost_file):
+            os.remove(vhost_file)
+        if os.path.exists(website_path):
+            shutil.rmtree(website_path)
     except Exception as e:
         logger.error(f"Error creating {website_name}: {str(e)}")
         flash(f"Error creating {website_name}: {str(e)}", "error")
+        # Clean up partial creation
+        if os.path.exists(vhost_file):
+            os.remove(vhost_file)
+        if os.path.exists(website_path):
+            shutil.rmtree(website_path)
     
     return redirect(url_for('index'))
 
@@ -188,38 +210,28 @@ def delete_website():
         flash(f"Site {website_name} does not exist", "error")
         return redirect(url_for('index'))
     
-    # Get port from virtual host file
-    port = None
     try:
+        # Get port from virtual host file
+        port = None
         with open(vhost_file, 'r') as f:
             for line in f:
                 if line.strip().startswith('Listen'):
                     port = int(line.strip().split()[1])
                     break
-    except Exception as e:
-        logger.error(f"Error reading {vhost_file}: {str(e)}")
-        flash(f"Error reading config for {website_name}", "error")
-        return redirect(url_for('index'))
-    
-    if port is None:
-        flash(f"Could not determine port for {website_name}", "error")
-        return redirect(url_for('index'))
-    
-    try:
-        # Remove virtual host file and disable site
-        result = subprocess.run(['a2dissite', website_name, '--force'], capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"Failed to disable site {website_name}: {result.stderr}")
-            flash(f"Failed to disable site {website_name}", "error")
+        if port is None:
+            flash(f"Could not determine port for {website_name}", "error")
             return redirect(url_for('index'))
         
+        # Disable and remove virtual host
+        result = subprocess.run(['a2dissite', website_name, '--force'], capture_output=True, text=True, check=True)
+        logger.info(f"a2dissite {website_name}: {result.stdout}")
         os.remove(vhost_file)
         
         # Remove website directory
         if os.path.exists(website_path):
             shutil.rmtree(website_path)
         
-        # Update ports file to remove the port
+        # Update ports file
         with open(PORTS_FILE, 'r') as f:
             lines = f.readlines()
             next_site_num = int(lines[0].strip())
@@ -230,23 +242,20 @@ def delete_website():
         if port in used_ports:
             used_ports.remove(port)
         
-        # If the deleted site was the highest numbered, adjust next_site_num
         site_num = int(website_name.replace('site_', ''))
         if site_num == next_site_num - 1:
             next_site_num = max(1, site_num)
         
-        with open(PORTS_FILE, 'w') as f:
-            f.write(f"{next_site_num}\n")
-            f.write(",".join(map(str, sorted(used_ports))) if used_ports else "")
+        update_ports_file(next_site_num, used_ports)
         
         # Reload Apache
-        result = subprocess.run(['service', 'apache2', 'reload'], capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"Failed to reload Apache2: {result.stderr}")
-            flash(f"Failed to reload Apache2 after deleting {website_name}", "error")
-            return redirect(url_for('index'))
+        result = subprocess.run(['service', 'apache2', 'reload'], capture_output=True, text=True, check=True)
+        logger.info(f"Apache2 reload: {result.stdout}")
         
         flash(f"Deleted {website_name} and freed port {port}", "success")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Subprocess error deleting {website_name}: {e.stderr}")
+        flash(f"Error deleting {website_name}: {e.stderr}", "error")
     except Exception as e:
         logger.error(f"Error deleting {website_name}: {str(e)}")
         flash(f"Error deleting {website_name}: {str(e)}", "error")
