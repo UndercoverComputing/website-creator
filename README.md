@@ -5,7 +5,7 @@ This project provides a web-based interface to create and manage simple websites
 ## Features
 - **Web UI**: Accessible on port 80 (mapped to container port 8080), allows creating new websites with a "Create" button and deleting websites by entering their name (e.g., `site_1`).
 - **Website Creation**: Each website is assigned a sequential name and port: `site_1` on port 8001, `site_2` on port 8002, ..., `site_43` on port 8043, etc.
-- **Port and Name Reuse**: When a site is deleted, its port and name are reused for the next site (e.g., if `site_4` on 8004 is deleted, the next site is `site_4` on 8044).
+- **Port and Name Reuse**: When a site is deleted, its port and name are reused for the next site (e.g., if `site_4` on 8004 is deleted, the next site is `site_4` on 8004).
 - **Apache2 Hosting**: Websites are served by Apache2 on unique ports in the range 8001–9000.
 - **Persistence**: Website files and port tracking are stored on the host at `/opt/website-creator`, mounted to `/var/www/html` and `/app/ports.txt` in the container.
 - **Manual IP Configuration**: Links to websites use a user-specified server IP, set via the `SERVER_IP` environment variable.
@@ -14,7 +14,7 @@ This project provides a web-based interface to create and manage simple websites
 - **Resource Limits**: CPU and memory limits prevent system crashes on low-resource systems.
 
 ## Prerequisites
-- **Docker**: Install Docker and Docker Compose on your server.
+- **Docker**: Install Docker and Docker Compose V2 on your server.
 - **Host Directory**: Create `/opt/website-creator` on the host for persistent storage.
 - **Server IP**: Know your server's IP address (e.g., `192.168.0.22` for LAN or a public IP).
 - **Git**: Required to clone the repository.
@@ -71,7 +71,7 @@ This project provides a web-based interface to create and manage simple websites
 
 5. **Build and Run with Docker Compose**:
    ```bash
-   docker-compose up --build -d
+   docker compose up --build -d
    ```
    - Builds the Docker image and starts the container named `website-creator`.
    - Maps ports: 80 (Flask UI, container port 8080), 5000 (Apache2 default), 8000–9000 (websites).
@@ -104,7 +104,7 @@ To apply changes to the code or configuration:
 
 2. **Stop and Remove Containers**:
    ```bash
-   docker-compose down
+   docker compose down
    ```
    Or, if using `docker run`:
    ```bash
@@ -142,8 +142,8 @@ To apply changes to the code or configuration:
   ```
   Or edit `docker-compose.yml` to remove `restart: unless-stopped` and redeploy:
   ```bash
-  docker-compose down
-  docker-compose up -d
+  docker compose down
+  docker compose up -d
   ```
 - **Stop Container Without Restarting**:
   ```bash
@@ -202,8 +202,8 @@ To apply changes to the code or configuration:
   - Reduce load by limiting simultaneous site creations (wait a few seconds between clicks).
   - If crashes persist, lower limits in `docker-compose.yml` (e.g., `cpus: '0.3'`, `memory: 256M`) and redeploy:
     ```bash
-    docker-compose down
-    docker-compose up -d
+    docker compose down
+    docker compose up -d
     ```
   - Check for other running containers or services:
     ```bash
