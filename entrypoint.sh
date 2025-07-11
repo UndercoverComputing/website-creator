@@ -6,6 +6,8 @@ echo "Starting entrypoint.sh"
 echo "Fixing permissions for Apache2 directories..."
 chown -R www-data:www-data /etc/apache2/sites-available /etc/apache2/sites-enabled
 chmod -R 755 /etc/apache2/sites-available /etc/apache2/sites-enabled
+chown -R www-data:www-data /var/www/html
+chmod -R 755 /var/www/html
 
 # Ensure Apache2 configuration is valid
 echo "Validating Apache2 configuration..."
@@ -16,14 +18,10 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Start Apache2
-echo "Starting Apache2..."
-service apache2 start
-if [ $? -ne 0 ]; then
-    echo "Failed to start Apache2"
-    cat /var/log/apache2/error.log
-    exit 1
-fi
+# Start Apache2 in the foreground to handle shutdown signals
+echo "Starting Apache2 in foreground..."
+/usr/sbin/apache2ctl -D FOREGROUND &
+APACHE_PID=$!
 
 # Enable all virtual host sites
 echo "Enabling all virtual host sites..."
@@ -50,12 +48,10 @@ fi
 # Start Flask app
 echo "Starting Flask app..."
 python3 /app/app.py &
-if [ $? -ne 0 ]; then
-    echo "Failed to start Flask app"
-    exit 1
-fi
+FLASK_PID=$!
 
-echo "Both services started successfully"
+# Trap SIGTERM to gracefully shut down Apache2 and Flask
+trap 'echo "Stopping services..."; kill -TERM $APACHE_PID $FLASK_PID; wait $APACHE_PID $FLASK_PID; exit 0' SIGTERM
 
-# Keep container running
-tail -f /var/log/apache2/access.log /var/log/apache2/error.log
+# Wait for processes to keep container running
+wait $APACHE_PID $FLASK_PID

@@ -14,3 +14,11 @@ services:
       - DEBIAN_FRONTEND=noninteractive
       - SERVER_IP=${SERVER_IP}  # Required: set in .env or environment
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'  # Limit to 50% of one CPU core
+          memory: 512M  # Limit to 512MB RAM
+        reservations:
+          cpus: '0.25'  # Reserve 25% of one CPU core
+          memory: 256M  # Reserve 256MB RAM

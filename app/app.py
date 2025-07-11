@@ -3,6 +3,7 @@ import os
 import subprocess
 import shutil
 import logging
+import time
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"  # Required for flash messages
@@ -82,6 +83,15 @@ def update_ports_file(next_site_num, used_ports):
             f.write(",".join(map(str, sorted(used_ports))) if used_ports else "")
     except Exception as e:
         logger.error(f"Error updating ports file: {str(e)}")
+        raise
+
+def reload_apache():
+    try:
+        result = subprocess.run(['service', 'apache2', 'reload'], capture_output=True, text=True, check=True)
+        logger.info(f"Apache2 reload: {result.stdout}")
+        time.sleep(1)  # Brief delay to allow Apache2 to stabilize
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Apache2 reload failed: {e.stderr}")
         raise
 
 @app.route('/')
@@ -168,8 +178,7 @@ Listen {port}
         logger.info(f"a2ensite {website_name}: {result.stdout}")
         
         # Reload Apache
-        result = subprocess.run(['service', 'apache2', 'reload'], capture_output=True, text=True, check=True)
-        logger.info(f"Apache2 reload: {result.stdout}")
+        reload_apache()
         
         # Update ports file only after successful creation
         used_ports.append(port)
@@ -249,8 +258,7 @@ def delete_website():
         update_ports_file(next_site_num, used_ports)
         
         # Reload Apache
-        result = subprocess.run(['service', 'apache2', 'reload'], capture_output=True, text=True, check=True)
-        logger.info(f"Apache2 reload: {result.stdout}")
+        reload_apache()
         
         flash(f"Deleted {website_name} and freed port {port}", "success")
     except subprocess.CalledProcessError as e:
@@ -263,4 +271,4 @@ def delete_website():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080, threaded=False)  # Disable threading to reduce CPU usage
