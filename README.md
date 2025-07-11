@@ -16,7 +16,7 @@ This project provides a web-based interface to create and manage up to 100 simpl
 ## Prerequisites
 - **Docker**: Install Docker and Docker Compose V2 on your server.
 - **Host Directory**: Create `/opt/website-creator` on the host for persistent storage.
-- **Server IP**: Know your server's IP address (e.g., `192.168.0.22` for LAN or a public IP).
+- **Server IP**: Know your server's IP address (e.g., `192.168.1.100` for LAN or a public IP).
 - **Git**: Required to clone the repository.
 - **System Resources**: At least 2GB RAM and 1 CPU core; more recommended for stability.
 
@@ -24,22 +24,7 @@ This project provides a web-based interface to create and manage up to 100 simpl
 
 On a fresh Debian install (e.g., Debian 12), follow these steps to ensure a clean setup:
 
-1. **Install Docker and Docker Compose V2**:
-   ```bash
-   sudo apt update
-   sudo apt install -y docker.io
-   sudo systemctl enable docker
-   sudo systemctl start docker
-   ```
-   - Installs Docker and Docker Compose V2.
-   - Enables Docker to start on boot.
-   - Verify installation:
-     ```bash
-     docker --version
-     docker compose version
-     ```
-
-2. **Clone the Repository**:
+1. **Clone the Repository**:
    ```bash
    git clone https://github.com/The-Dark-Mode/website-creator.git
    cd website-creator
@@ -47,7 +32,7 @@ On a fresh Debian install (e.g., Debian 12), follow these steps to ensure a clea
    - Clones the project from GitHub and navigates to the project directory.
    - The repository contains all necessary files: `app/` (with `app.py`, `ports.txt`, `static/style.css`, `templates/index.html`), `Dockerfile`, `apache2.conf`, `entrypoint.sh`, and `docker-compose.yml`.
 
-3. **Create Host Directory and Ports File**:
+2. **Create Host Directory and Ports File**:
    ```bash
    sudo mkdir -p /opt/website-creator
    sudo rm -rf /opt/website-creator/ports.txt  # Remove if it exists as a directory
@@ -55,16 +40,17 @@ On a fresh Debian install (e.g., Debian 12), follow these steps to ensure a clea
    sudo chown -R www-data:www-data /opt/website-creator
    sudo chmod -R 755 /opt/website-creator
    ```
-   - Creates `/opt/website-creator` for website files and `/app/ports.txt` for port tracking.
+   - Creates `/opt/website-creator` for website files and `/opt/website-creator/ports.txt` for port tracking.
    - Initializes `ports.txt` with `1` (next site number) and no used ports.
    - Sets permissions for the container’s `www-data` user.
 
-4. **Set SERVER_IP Environment Variable**:
+3. **Set SERVER_IP Environment Variable**:
    - Create a `.env` file in the `website-creator` directory:
      ```bash
-     echo "SERVER_IP=192.168.0.22" > .env
+     echo "SERVER_IP=<your-server-ip>" > .env
      ```
-   - Replace `192.168.0.22` with your server's LAN or public IP address. Find it with:
+     Example: `SERVER_IP=192.168.1.100`
+   - Replace `<your-server-ip>` with your server's LAN or public IP address. Find it with:
      ```bash
      ip addr show | grep inet
      ```
@@ -73,7 +59,7 @@ On a fresh Debian install (e.g., Debian 12), follow these steps to ensure a clea
      curl ifconfig.me  # For public IP
      ```
 
-5. **Optimize System Resources**:
+4. **Optimize System Resources**:
    - Increase file descriptor and socket limits to prevent networking issues:
      ```bash
      sudo sysctl -w fs.file-max=65535
@@ -86,7 +72,7 @@ On a fresh Debian install (e.g., Debian 12), follow these steps to ensure a clea
      sudo systemctl restart docker
      ```
 
-6. **Build and Run with Docker Compose**:
+5. **Build and Run with Docker Compose**:
    ```bash
    docker compose up --build -d
    ```
@@ -96,16 +82,16 @@ On a fresh Debian install (e.g., Debian 12), follow these steps to ensure a clea
    - Sets CPU/memory limits (0.5 CPU, 512MB RAM) to prevent system crashes.
    - The `restart: unless-stopped` policy ensures the container restarts on crashes or reboots unless explicitly stopped.
 
-7. **Alternative: Run with Docker**:
+6. **Alternative: Run with Docker**:
    If you prefer not to use Docker Compose:
    ```bash
    docker build -t website-creator .
-   docker run -d --name website-creator --restart unless-stopped --cpus="0.5" --memory="512m" -p 80:8080 -p 5000:5000 -p 8000-8100:8000-8100 -v /opt/website-creator:/var/www/html -v /opt/website-creator/ports.txt:/app/ports.txt -e SERVER_IP=192.168.0.22 website-creator
+   docker run -d --name website-creator --restart unless-stopped -p 80:8080 -p 5000:5000 -p 8000-8100:8000-8100 -v /opt/website-creator:/var/www/html -v /opt/website-creator/ports.txt:/app/ports.txt -e SERVER_IP=<your-server-ip> website-creator
    ```
 
-8. **Access the Web UI**:
-   - Open a browser and navigate to `http://192.168.0.22:80`.
-   - Click "Create New Website" to generate a new site (e.g., `site_1` on `http://192.168.0.22:8001`). Maximum 100 websites.
+7. **Access the Web UI**:
+   - Open a browser and navigate to `http://<your-server-ip>:80`.
+   - Click "Create New Website" to generate a new site (e.g., `site_1` on `http://<your-server-ip>:8001`).
    - To delete a site, enter its name (e.g., `site_1`) in the delete form and click "Delete".
    - Check success/error messages below the form.
 
@@ -177,10 +163,10 @@ To apply changes to the code or configuration:
 
 ## Environment Variables
 - **SERVER_IP** (Required):
-  - The IP address of the server hosting the container (e.g., `192.168.0.22` or a public IP).
-  - Used for generating website links in the UI (e.g., `http://192.168.0.22:8001` for `site_1`).
+  - The IP address of the server hosting the container (e.g., `192.168.1.100` or a public IP).
+  - Used for generating website links in the UI (e.g., `http://192.168.1.100:8001` for `site_1`).
   - Set in `.env` file or via `-e SERVER_IP=<ip>` in `docker run`.
-  - Example: `SERVER_IP=192.168.0.22`
+  - Example: `SERVER_IP=192.168.1.100`
 - **DEBIAN_FRONTEND** (Optional, default: `noninteractive`):
   - Prevents interactive prompts during package installation in the Docker image.
 
@@ -278,7 +264,7 @@ To apply changes to the code or configuration:
 - **Maximum Website Limit Reached**:
   - If you see "Maximum number of websites (100) reached", delete existing sites to free up ports:
     ```bash
-    curl -X POST -d "website_name=site_100" http://192.168.0.22:80/delete
+    curl -X POST -d "website_name=site_100" http://192.168.1.100:80/delete
     ```
     Or use the UI to delete sites.
   - Verify available ports:
@@ -366,7 +352,7 @@ To apply changes to the code or configuration:
     ```
   - Test website ports:
     ```bash
-    curl http://192.168.0.22:8001
+    curl http://192.168.1.100:8001
     ```
     Should return `site_1`’s `index.html`.
 - **Container Not Starting on Boot**:
