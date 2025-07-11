@@ -1,15 +1,15 @@
 # Website Creator
 
-This project provides a web-based interface to create and manage simple websites, each served on a unique port (8001–9000) by Apache2, running in a Docker container. The Flask-based UI allows users to create and delete websites, with ports and site names reused to avoid gaps in the sequence.
+This project provides a web-based interface to create and manage up to 100 simple websites, each served on a unique port (8001–8100) by Apache2, running in a Docker container. The Flask-based UI allows users to create and delete websites, with ports and site names reused to avoid gaps in the sequence.
 
 ## Features
 - **Web UI**: Accessible on port 80 (mapped to container port 8080), allows creating new websites with a "Create" button and deleting websites by entering their name (e.g., `site_1`).
-- **Website Creation**: Each website is assigned a sequential name and port: `site_1` on port 8001, `site_2` on port 8002, ..., `site_43` on port 8043, etc.
+- **Website Creation**: Each website is assigned a sequential name and port: `site_1` on port 8001, `site_2` on port 8002, ..., `site_100` on port 8100. Maximum 100 websites.
 - **Port and Name Reuse**: When a site is deleted, its port and name are reused for the next site (e.g., if `site_4` on 8004 is deleted, the next site is `site_4` on 8004).
-- **Apache2 Hosting**: Websites are served by Apache2 on unique ports in the range 8001–9000.
+- **Apache2 Hosting**: Websites are served by Apache2 on unique ports in the range 8001–8100.
 - **Persistence**: Website files and port tracking are stored on the host at `/opt/website-creator`, mounted to `/var/www/html` and `/app/ports.txt` in the container.
 - **Manual IP Configuration**: Links to websites use a user-specified server IP, set via the `SERVER_IP` environment variable.
-- **User Feedback**: Success/error messages for create/delete actions (e.g., "Created site_1 on port 8001", "Invalid site name").
+- **User Feedback**: Success/error messages for create/delete actions (e.g., "Created site_1 on port 8001", "Maximum number of websites (100) reached").
 - **Autostart**: The container starts automatically on system boot and restarts unless explicitly stopped.
 - **Resource Limits**: CPU and memory limits prevent system crashes on low-resource systems.
 
@@ -20,9 +20,26 @@ This project provides a web-based interface to create and manage simple websites
 - **Git**: Required to clone the repository.
 - **System Resources**: At least 2GB RAM and 1 CPU core; more recommended for stability.
 
-## Setup Instructions
+## Setup Instructions for Fresh Debian Install
 
-1. **Clone the Repository**:
+On a fresh Debian install (e.g., Debian 12), follow these steps to ensure a clean setup:
+
+1. **Install Docker and Docker Compose V2**:
+   ```bash
+   sudo apt update
+   sudo apt install -y docker.io docker-compose-v2
+   sudo systemctl enable docker
+   sudo systemctl start docker
+   ```
+   - Installs Docker and Docker Compose V2.
+   - Enables Docker to start on boot.
+   - Verify installation:
+     ```bash
+     docker --version
+     docker compose version
+     ```
+
+2. **Clone the Repository**:
    ```bash
    git clone https://github.com/The-Dark-Mode/website-creator.git
    cd website-creator
@@ -30,7 +47,7 @@ This project provides a web-based interface to create and manage simple websites
    - Clones the project from GitHub and navigates to the project directory.
    - The repository contains all necessary files: `app/` (with `app.py`, `ports.txt`, `static/style.css`, `templates/index.html`), `Dockerfile`, `apache2.conf`, `entrypoint.sh`, and `docker-compose.yml`.
 
-2. **Create Host Directory and Ports File**:
+3. **Create Host Directory and Ports File**:
    ```bash
    sudo mkdir -p /opt/website-creator
    sudo rm -rf /opt/website-creator/ports.txt  # Remove if it exists as a directory
@@ -38,17 +55,16 @@ This project provides a web-based interface to create and manage simple websites
    sudo chown -R www-data:www-data /opt/website-creator
    sudo chmod -R 755 /opt/website-creator
    ```
-   - Creates `/opt/website-creator` for website files and `/opt/website-creator/ports.txt` for port tracking.
+   - Creates `/opt/website-creator` for website files and `/app/ports.txt` for port tracking.
    - Initializes `ports.txt` with `1` (next site number) and no used ports.
    - Sets permissions for the container’s `www-data` user.
 
-3. **Set SERVER_IP Environment Variable**:
+4. **Set SERVER_IP Environment Variable**:
    - Create a `.env` file in the `website-creator` directory:
      ```bash
-     echo "SERVER_IP=<your-server-ip>" > .env
+     echo "SERVER_IP=192.168.0.22" > .env
      ```
-     Example: `SERVER_IP=192.168.0.22`
-   - Replace `<your-server-ip>` with your server's LAN or public IP address. Find it with:
+   - Replace `192.168.0.22` with your server's LAN or public IP address. Find it with:
      ```bash
      ip addr show | grep inet
      ```
@@ -57,39 +73,39 @@ This project provides a web-based interface to create and manage simple websites
      curl ifconfig.me  # For public IP
      ```
 
-4. **Enable Docker on System Startup**:
-   - Ensure the Docker service starts when the server boots:
+5. **Optimize System Resources**:
+   - Increase file descriptor and socket limits to prevent networking issues:
      ```bash
-     sudo systemctl enable docker
-     sudo systemctl enable containerd
+     sudo sysctl -w fs.file-max=65535
+     sudo sysctl -w net.core.somaxconn=65535
+     echo "fs.file-max=65535" | sudo tee -a /etc/sysctl.conf
+     echo "net.core.somaxconn=65535" | sudo tee -a /etc/sysctl.conf
      ```
-   - Verify Docker is enabled:
+   - Restart Docker to apply changes:
      ```bash
-     sudo systemctl is-enabled docker
+     sudo systemctl restart docker
      ```
-     Should output `enabled`.
 
-5. **Build and Run with Docker Compose**:
+6. **Build and Run with Docker Compose**:
    ```bash
    docker compose up --build -d
    ```
    - Builds the Docker image and starts the container named `website-creator`.
-   - Maps ports: 80 (Flask UI, container port 8080), 5000 (Apache2 default), 8000–9000 (websites).
+   - Maps ports: 80 (Flask UI, container port 8080), 5000 (Apache2 default), 8000–8100 (websites).
    - Mounts `/opt/website-creator` to `/var/www/html` and `/app/ports.txt`.
    - Sets CPU/memory limits (0.5 CPU, 512MB RAM) to prevent system crashes.
    - The `restart: unless-stopped` policy ensures the container restarts on crashes or reboots unless explicitly stopped.
 
-6. **Alternative: Run with Docker**:
+7. **Alternative: Run with Docker**:
    If you prefer not to use Docker Compose:
    ```bash
    docker build -t website-creator .
-   docker run -d --name website-creator --restart unless-stopped --cpus="0.5" --memory="512m" -p 80:8080 -p 5000:5000 -p 8000-9000:8000-9000 -v /opt/website-creator:/var/www/html -v /opt/website-creator/ports.txt:/app/ports.txt -e SERVER_IP=<your-server-ip> website-creator
+   docker run -d --name website-creator --restart unless-stopped --cpus="0.5" --memory="512m" -p 80:8080 -p 5000:5000 -p 8000-8100:8000-8100 -v /opt/website-creator:/var/www/html -v /opt/website-creator/ports.txt:/app/ports.txt -e SERVER_IP=192.168.0.22 website-creator
    ```
-   Example: `-e SERVER_IP=192.168.0.22`
 
-7. **Access the Web UI**:
-   - Open a browser and navigate to `http://<your-server-ip>:80`.
-   - Click "Create New Website" to generate a new site (e.g., `site_1` on `http://<your-server-ip>:8001`).
+8. **Access the Web UI**:
+   - Open a browser and navigate to `http://192.168.0.22:80`.
+   - Click "Create New Website" to generate a new site (e.g., `site_1` on `http://192.168.0.22:8001`). Maximum 100 websites.
    - To delete a site, enter its name (e.g., `site_1`) in the delete form and click "Delete".
    - Check success/error messages below the form.
 
@@ -127,7 +143,7 @@ To apply changes to the code or configuration:
      ```
 
 5. **Rebuild and Restart**:
-   - Follow step 5 or 6 from the setup instructions above.
+   - Follow step 6 or 7 from the setup instructions above.
 
 ## Managing Autostart
 - **Check Container Restart Policy**:
@@ -162,7 +178,7 @@ To apply changes to the code or configuration:
 ## Environment Variables
 - **SERVER_IP** (Required):
   - The IP address of the server hosting the container (e.g., `192.168.0.22` or a public IP).
-  - Used for generating website links in the UI (e.g., `http://<SERVER_IP>:8001` for `site_1`).
+  - Used for generating website links in the UI (e.g., `http://192.168.0.22:8001` for `site_1`).
   - Set in `.env` file or via `-e SERVER_IP=<ip>` in `docker run`.
   - Example: `SERVER_IP=192.168.0.22`
 - **DEBIAN_FRONTEND** (Optional, default: `noninteractive`):
@@ -173,14 +189,16 @@ To apply changes to the code or configuration:
 - **Port Usage**:
   - Host port 80: Flask web UI (mapped to container port 8080).
   - Port 5000: Apache2 default site (serves `/var/www/html` if accessed directly).
-  - Ports 8001–9000: Individual websites (e.g., `site_1` on 8001, `site_2` on 8002).
+  - Ports 8001–8100: Individual websites (e.g., `site_1` on 8001, `site_2` on 8002). Maximum 100 websites.
 - **Port and Name Reuse**: When a site is deleted, its port and name are reused for the next site (e.g., if `site_4` on 8004 is deleted, the next site is `site_4` on 8004).
 - **Persistence**: Website files and `ports.txt` are stored in `/opt/website-creator` on the host. Ensure `/opt/website-creator/ports.txt` exists as a file before running the container.
 - **Ports File Format**: `ports.txt` has two lines:
   - First line: Next site number (e.g., `2` for `site_2` if no gaps).
   - Second line: Comma-separated used ports (e.g., `8001,8002`) or empty if no ports are used.
-- **Security**: For production, add authentication to the Flask UI, enable HTTPS, and restrict firewall access to ports 80, 5000, and 8000–9000.
+- **Website Limit**: The application is limited to 100 websites (ports 8001–8100). Attempting to create more will show an error: "Maximum number of websites (100) reached".
+- **Security**: For production, add authentication to the Flask UI, enable HTTPS, and restrict firewall access to ports 80, 5000, and 8000–8100.
 - **Resource Limits**: The container is limited to 0.5 CPU cores and 512MB RAM to prevent system crashes on low-memory systems (e.g., 2GB RAM).
+- **Fresh Install Notes**: On a fresh Debian install, ensure Docker and Docker Compose V2 are installed, and system resource limits (file descriptors, sockets) are increased to avoid networking issues.
 - **Permissions**: After creating/deleting websites, adjust host permissions if needed:
   ```bash
   sudo chown -R www-data:www-data /opt/website-creator
@@ -188,6 +206,49 @@ To apply changes to the code or configuration:
   ```
 
 ## Troubleshooting
+- **Networking Errors (e.g., "failed to start userland proxy")**:
+  - Verify no processes are using ports 80, 5000, or 8000–8100:
+    ```bash
+    sudo netstat -tuln | grep -E '80|5000|8[0-1][0-9]{2}'
+    ```
+    If a port (e.g., 8670) is in use, identify and stop the process:
+    ```bash
+    sudo lsof -i :8670
+    sudo kill -9 <pid>
+    ```
+  - Clear stale Docker networks and containers:
+    ```bash
+    docker compose down
+    docker rm -f website-creator
+    docker network ls
+    docker network rm website-creator_default
+    ```
+  - Check system resource limits (file descriptors, sockets):
+    ```bash
+    ulimit -n
+    ```
+    If low (e.g., <4096), increase:
+    ```bash
+    sudo sysctl -w fs.file-max=65535
+    sudo sysctl -w net.core.somaxconn=65535
+    echo "fs.file-max=65535" | sudo tee -a /etc/sysctl.conf
+    echo "net.core.somaxconn=65535" | sudo tee -a /etc/sysctl.conf
+    ```
+  - Restart Docker daemon:
+    ```bash
+    sudo systemctl restart docker
+    ```
+  - Check Docker daemon logs for networking issues:
+    ```bash
+    sudo journalctl -u docker
+    ```
+  - Try a narrower port range (e.g., `8000-8020:8000-8020`) in `docker-compose.yml` and update `app.py` to match (change `port > 8100` to `port > 8020` and `MAX_WEBSITES = 20`):
+    ```bash
+    nano docker-compose.yml
+    nano app/app.py
+    docker compose down
+    docker compose up --build -d
+    ```
 - **System Crashes (High RAM/CPU Usage)**:
   - Check resource usage during site creation:
     ```bash
@@ -213,6 +274,17 @@ To apply changes to the code or configuration:
     Stop unnecessary services:
     ```bash
     sudo systemctl stop <service-name>
+    ```
+- **Maximum Website Limit Reached**:
+  - If you see "Maximum number of websites (100) reached", delete existing sites to free up ports:
+    ```bash
+    curl -X POST -d "website_name=site_100" http://192.168.0.22:80/delete
+    ```
+    Or use the UI to delete sites.
+  - Verify available ports:
+    ```bash
+    cat /opt/website-creator/ports.txt
+    docker exec website-creator ls /etc/apache2/sites-available
     ```
 - **Slow `docker stop website-creator`**:
   - Increase Docker stop timeout:
@@ -310,7 +382,7 @@ To apply changes to the code or configuration:
 - **Port Conflicts**:
   - Check host and container ports:
     ```bash
-    sudo netstat -tuln | grep -E '80|5000|8000:9000'
+    sudo netstat -tuln | grep -E '80|5000|8[0-1][0-9]{2}'
     docker exec website-creator netstat -tuln
     ```
     Resolve conflicts:

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 WEBSITES_DIR = "/var/www/html"
 PORTS_FILE = "/app/ports.txt"
 VHOSTS_DIR = "/etc/apache2/sites-available"
+MAX_WEBSITES = 100  # Limit to 100 websites (ports 8001-8100)
 
 # Require SERVER_IP environment variable
 SERVER_IP = os.environ.get('SERVER_IP')
@@ -45,6 +46,12 @@ def get_next_site_and_port():
                 existing_sites.append(site_num)
         existing_sites.sort()
         
+        # Check if maximum website limit is reached
+        if len(existing_sites) >= MAX_WEBSITES:
+            flash(f"Maximum number of websites ({MAX_WEBSITES}) reached", "error")
+            logger.error(f"Maximum number of websites ({MAX_WEBSITES}) reached")
+            return None, None, None, None
+        
         # Find the first missing site number
         site_num = None
         for i in range(1, next_site_num):
@@ -56,14 +63,16 @@ def get_next_site_and_port():
         
         # Assign port as 8000 + site_num
         port = 8000 + site_num
-        if port > 9000:
-            flash("No more ports available (8001-9000 used)", "error")
+        if port > 8100:  # Matches docker-compose.yml port range
+            flash("No more ports available (8001-8100 used)", "error")
+            logger.error("Port limit exceeded: 8001-8100 already used")
             return None, None, None, None
         
         if port in used_ports:
             # Check if port is actually in use by a valid site
             if os.path.exists(os.path.join(VHOSTS_DIR, f"site_{site_num}.conf")):
                 flash(f"Port {port} is already in use by site_{site_num}", "error")
+                logger.error(f"Port {port} already in use by site_{site_num}")
                 return None, None, None, None
             else:
                 # Port is in ports.txt but no site exists; allow reuse
