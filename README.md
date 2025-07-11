@@ -27,7 +27,7 @@ On a fresh Debian install (e.g., Debian 12), follow these steps to ensure a clea
 1. **Install Docker and Docker Compose V2**:
    ```bash
    sudo apt update
-   sudo apt install -y docker.io docker-compose-v2
+   sudo apt install -y docker.io
    sudo systemctl enable docker
    sudo systemctl start docker
    ```
